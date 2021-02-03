@@ -1,4 +1,57 @@
 from collections import defaultdict
+import pandas as pd
+from sklearn.model_selection import GridSearchCV
+
+
+"""
+read data from datafile and split into input and output data
+X: input data
+Y: output data (for example classification)
+"""
+def read_dataset(datafile, ignore_class=None):
+    data = pd.read_csv(datafile)
+    all_columns = data.columns
+
+    if ignore_class is not None:
+        data = data[data.classification != ignore_class]
+
+    # divide dataset
+    class_zero = data[data.classification == 0]
+    class_rest = data[data.classification != 0]
+
+    # reduce class zero and update full dataset
+    reduced_zero = reduce_dataset_class(class_zero, 6)
+    reduced_dataset = pd.concat([reduced_zero, class_rest], sort=False).sort_index()
+
+    # classification = data["classification"].tolist()
+    # reduced_classification = reduced_dataset["classification"].tolist()
+    # print("Before:", classification.count(0), classification.count(1), classification.count(2))
+    # print("After:", reduced_classification.count(0), reduced_classification.count(1), reduced_classification.count(2))
+
+    x_cols = [
+        "close",
+        "volume",
+        "ema_25",
+        "vwma_50",
+        "vwma_100",
+        "vwma_200",
+        "macd",
+        "macds",
+        "macdh",
+        "mfi",
+        "adx",
+        "di_neg",
+        "di_pos",
+        "rvgi",
+        "rvgi_signal"
+    ]
+
+    y_cols = [all_columns[-1]]
+
+    X = reduced_dataset[x_cols]
+    Y = reduced_dataset[y_cols]
+
+    return X, Y.values.ravel()
 
 
 """
@@ -44,3 +97,24 @@ def reduce_dataset_class(dataset_from_class, blocksize):
     # reduce class dataframe to remaining blocks only
     dataset_reduced = dataset_from_class[dataset_from_class.index.isin(remaining_rows)]
     return dataset_reduced
+
+
+"""
+do some hyperparameter tuning and return best parameters
+model: something like RandomForestClassifier for example
+parameters: dictionary with parameters to test
+data: tuple with data[0] as input data and data[1] as output data
+"""
+def hyperparameter_classification_tuning(model, parameters, data):
+    grid_tuning = GridSearchCV(
+        model,
+        parameters,
+        cv=3,
+        verbose=4,
+        n_jobs=-1,
+        scoring="balanced_accuracy"
+    )
+
+    grid_tuning.fit(data[0], data[1])
+
+    return grid_tuning.best_params_
